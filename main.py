@@ -13,6 +13,9 @@ RSI_OVERSOLD = 30  # RSI oversold threshold
 PROFIT_TARGET = 0.05  # 5% profit target
 STOP_LOSS = -0.03  # 3% stop loss
 MAX_HOLD_DAYS = 20  # Maximum holding period (~1 month)
+FEE_RATE = 0.001425   # Transaction Fee
+TAX_RATE = 0.003      # Sold Fee
+SLIPPAGE = 0.001      # Slip Rate
 
 # Function to fetch stock data using yfinance
 def fetch_stock_data(stock_code, start_date, end_date):
@@ -101,22 +104,28 @@ def backtest_strategy(df, initial_capital):
     trades = []
     
     for buy, sell in zip(buy_signals, sell_signals):
-        # Buy transaction
-        shares = capital // buy['price']
-        cost = shares * buy['price']
-        capital -= cost
-        
-        # Sell transaction
-        revenue = shares * sell['price']
-        capital += revenue
-        
-        # Record trade
-        profit = revenue - cost
+        buy_price = buy['price'] * (1 + SLIPPAGE)
+        sell_price = sell['price'] * (1 - SLIPPAGE)
+
+        # Buy Transaction
+        shares = capital // buy_price
+        cost = shares * buy_price
+        buy_fee = cost * FEE_RATE
+        capital -= (cost + buy_fee)
+
+        # Sell Transaction
+        revenue = shares * sell_price
+        sell_fee = revenue * FEE_RATE
+        tax = revenue * TAX_RATE
+        capital += (revenue - sell_fee - tax)
+
+        # Record Transaction
+        profit = revenue - cost - buy_fee - sell_fee - tax
         trades.append({
             'buy_date': buy['date'],
-            'buy_price': buy['price'],
+            'buy_price': buy_price,
             'sell_date': sell['date'],
-            'sell_price': sell['price'],
+            'sell_price': sell_price,
             'profit': profit,
             'shares': shares
         })
